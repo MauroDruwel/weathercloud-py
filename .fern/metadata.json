@@ -4,10 +4,11 @@
   "generatorVersion": "5.18.1",
   "generatorConfig": {
     "client_class_name": "WeathercloudClient",
+    "package_name": "weathercloud",
     "inline_path_params": true,
     "retry_status_codes": "recommended"
   },
-  "originGitCommit": "65c579b8b9f6d94294e7b9515b7edd842b48a430",
-  "originGitCommitIsDirty": true,
+  "originGitCommit": "e41d1f2bd66d0f3797e75a8f4574340e1f6374f2",
+  "originGitCommitIsDirty": false,
   "invokedBy": "manual"
 }

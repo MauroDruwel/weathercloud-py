@@ -44,6 +44,7 @@ if typing.TYPE_CHECKING:
     from .environment import WeathercloudClientEnvironment
     from .map_ import GetMetarsMapResponse
     from .stations import GetPopularStationsRequestPeriod
+    from .version import __version__
 _dynamic_imports: typing.Dict[str, str] = {
     "AsyncWeathercloudClient": ".client",
     "DefaultAioHttpClient": "._default_clients",
@@ -82,6 +83,7 @@ _dynamic_imports: typing.Dict[str, str] = {
     "WeathercloudClientEnvironment": ".environment",
     "WindData": ".types",
     "WindDataValuesItem": ".types",
+    "__version__": ".version",
     "auth": ".auth",
     "device_history": ".device_history",
     "device_live": ".device_live",
@@ -151,6 +153,7 @@ __all__ = [
     "WeathercloudClientEnvironment",
     "WindData",
     "WindDataValuesItem",
+    "__version__",
     "auth",
     "device_history",
     "device_live",
