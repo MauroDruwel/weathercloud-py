@@ -1,186 +1,253 @@
 # Weathercloud Python Library
 
-[![fern shield](https://img.shields.io/badge/%F0%9F%8C%BF-Built%20with%20Fern-brightgreen)](https://buildwithfern.com?utm_source=github&utm_medium=github&utm_campaign=readme&utm_source=Weathercloud%2FPython)
-[![pypi](https://img.shields.io/pypi/v/weathercloud)](https://pypi.python.org/pypi/weathercloud)
+[![PyPI version](https://img.shields.io/pypi/v/weathercloud.svg?color=blue)](https://pypi.org/project/weathercloud/)
+[![Python versions](https://img.shields.io/pypi/pyversions/weathercloud.svg)](https://pypi.org/project/weathercloud/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![Fern](https://img.shields.io/badge/%F0%9F%8C%BF-Built%20with%20Fern-brightgreen)](https://buildwithfern.com)
 
-The Weathercloud Python library provides convenient access to the Weathercloud APIs from Python.
+Typed, modern Python client library for [Weathercloud](https://weathercloud.net) — query real-time weather station sensor readings, METAR airport observations, sensor statistics, and historical trends without requiring authentication or CSRF tokens.
+
+Ideal for **Home Assistant** custom integrations, weather dashboards, automation scripts, and data analysis pipelines.
+
+---
 
 ## Table of Contents
 
 - [Installation](#installation)
-- [Reference](#reference)
-- [Usage](#usage)
-- [Environments](#environments)
-- [Async Client](#async-client)
-- [Exception Handling](#exception-handling)
-- [Advanced](#advanced)
-  - [Access Raw Response Data](#access-raw-response-data)
-  - [Retries](#retries)
-  - [Timeouts](#timeouts)
-  - [Custom Client](#custom-client)
-- [Contributing](#contributing)
+- [Quickstart](#quickstart)
+- [Live Weather Station Readings](#live-weather-station-readings)
+- [Sensor Variables Reference](#sensor-variables-reference)
+- [Station Profile & Metadata](#station-profile--metadata)
+- [Map & Station Discovery](#map--station-discovery)
+- [METAR Airport Observations](#metar-airport-observations)
+- [Asynchronous Client](#asynchronous-client)
+- [Error Handling](#error-handling)
+- [Custom Configuration & Environments](#custom-configuration--environments)
+- [Full Reference](#full-reference)
+
+---
 
 ## Installation
 
-```sh
+```bash
 pip install weathercloud
 ```
 
-## Reference
+Or using [uv](https://github.com/astral-sh/uv) / [poetry](https://python-poetry.org):
 
-A full reference for this library is available [here](./reference.md).
+```bash
+uv add weathercloud
+# or
+poetry add weathercloud
+```
 
-## Usage
+---
 
-Instantiate and use the client with the following:
+## Quickstart
+
+Get current weather readings for any public Weathercloud station using its device ID (e.g., `5726468552`):
 
 ```python
 from weathercloud import WeathercloudClient
 
 client = WeathercloudClient()
 
-client.auth.login(
-    login_form_entity="LoginForm[entity]",
-    login_form_password="LoginForm[password]",
-)
+# Query live sensor readings — no login or CSRF tokens required
+weather = client.device_live.get_values(device_id="5726468552")
+
+print(f"Timestamp:   {weather.epoch}")
+print(f"Temperature: {weather.temp} °C")
+print(f"Humidity:    {weather.hum} %")
+print(f"Pressure:    {weather.bar} hPa")
+print(f"Wind Speed:  {weather.wspd} m/s (Gusts: {weather.wspdhi} m/s)")
+print(f"Wind Dir:    {weather.wdir}°")
+print(f"Daily Rain:  {weather.rain} mm")
 ```
 
-## Environments
+---
 
-This SDK allows you to configure different environments for API requests.
+## Live Weather Station Readings
+
+### All Sensor Values
+
+`client.device_live.get_values(device_id=...)` returns strongly-typed sensor readings:
 
 ```python
+from weathercloud import WeathercloudClient
+
+client = WeathercloudClient()
+values = client.device_live.get_values(device_id="5726468552")
+
+# Temperature & Humidity
+print(f"Temp: {values.temp}°C | Dew Point: {values.dew}°C | Heat Index: {values.heat}°C | Chill: {values.chill}°C")
+print(f"Humidity: {values.hum}%")
+
+# Wind
+print(f"Wind Speed: {values.wspd} m/s (Avg: {values.wspdavg} m/s, Max: {values.wspdhi} m/s)")
+print(f"Direction:  {values.wdir}° (Avg: {values.wdiravg}°)")
+
+# Barometer & Rain
+print(f"Barometer:  {values.bar} hPa")
+print(f"Rain Today: {values.rain} mm (Rate: {values.rainrate} mm/h)")
+
+# Solar & UV (if supported by station hardware)
+if values.uvi is not None:
+    print(f"UV Index: {values.uvi}")
+if values.solarrad is not None:
+    print(f"Solar Radiation: {values.solarrad} W/m²")
+```
+
+---
+
+## Sensor Variables Reference
+
+Weathercloud reports abbreviated keys across its API. The SDK exposes these as clean, typed attributes:
+
+| Attribute | Type | Description | Unit / Format |
+|---|---|---|---|
+| `epoch` | `int` | Timestamp of last sensor transmission | Unix epoch (seconds) |
+| `temp` | `float` | Air temperature | °C |
+| `dew` | `float` | Dew point | °C |
+| `chill` | `float` | Wind chill | °C |
+| `heat` | `float` | Heat index | °C |
+| `hum` | `int` | Relative humidity | % (0–100) |
+| `bar` | `float` | Atmospheric / barometric pressure | hPa |
+| `wdir` | `int` | Instantaneous wind direction | Degrees (0–360°) |
+| `wdiravg` | `int` | Average wind direction | Degrees (0–360°) |
+| `wspd` | `float` | Instantaneous wind speed | m/s |
+| `wspdavg` | `float` | Average wind speed | m/s |
+| `wspdhi` | `float` | Peak wind gust of the day | m/s |
+| `rain` | `float` | Accumulated daily precipitation | mm |
+| `rainrate` | `float` | Current precipitation rate | mm/h |
+| `uvi` | `float` | UV index | Index (0–16) |
+| `solarrad` | `float` | Solar radiation | W/m² |
+
+---
+
+## Station Profile & Metadata
+
+Retrieve station model, manufacturer, coordinates, and observer details:
+
+```python
+from weathercloud import WeathercloudClient
+
+client = WeathercloudClient()
+
+# Get station device info
+info = client.device_live.get_info(device_id="5726468552")
+if info.device:
+    print(f"Station Name: {info.device.name}")
+    print(f"Model:        {info.device.model}")
+    print(f"Coordinates:  {info.device.latitude}, {info.device.longitude}")
+
+# Global Weathercloud network stats
+stats = client.device_live.get_stats()
+print(f"Active Devices:     {stats.devices_active}")
+print(f"Total Measurements: {stats.measurements_total}")
+```
+
+---
+
+## Map & Station Discovery
+
+Discover active weather stations within a geographic area or near coordinates:
+
+```python
+from weathercloud import WeathercloudClient
+
+client = WeathercloudClient()
+
+# Search stations in a latitude/longitude bounding box
+devices = client.map.get_devices(
+    min_lat=40.7000,
+    max_lat=40.8500,
+    min_lon=-74.0500,
+    max_lon=-73.9000,
+)
+
+for dev in devices:
+    print(f"ID: {dev.id} | Name: {dev.name} | Lat: {dev.latitude}, Lon: {dev.longitude}")
+```
+
+---
+
+## METAR Airport Observations
+
+Query aviation weather reports from global airport METAR stations:
+
+```python
+from weathercloud import WeathercloudClient
+
+client = WeathercloudClient()
+
+# Fetch airport METAR report by station / ICAO identifier
+metar = client.metar.get_values(device_id="EHAM")
+print(f"Airport METAR: {metar}")
+```
+
+---
+
+## Asynchronous Client
+
+The SDK provides a first-class `AsyncWeathercloudClient` powered by `httpx` for high-concurrency applications:
+
+```python
+import asyncio
+from weathercloud import AsyncWeathercloudClient
+
+async def fetch_stations():
+    client = AsyncWeathercloudClient()
+    
+    station_ids = ["5726468552", "1839204918", "9283741920"]
+    tasks = [client.device_live.get_values(device_id=sid) for sid in station_ids]
+    
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    for sid, result in zip(station_ids, results):
+        if not isinstance(result, Exception):
+            print(f"Station {sid}: {result.temp}°C, {result.hum}% hum")
+        else:
+            print(f"Station {sid} failed: {result}")
+
+asyncio.run(fetch_stations())
+```
+
+---
+
+## Error Handling
+
+All failed HTTP requests raise typed subclasses of `ApiError`:
+
+```python
+from weathercloud import WeathercloudClient
+from weathercloud.core.api_error import ApiError
+
+client = WeathercloudClient()
+
+try:
+    weather = client.device_live.get_values(device_id="nonexistent-id")
+except ApiError as err:
+    print(f"HTTP Status: {err.status_code}")
+    print(f"Error Body:  {err.body}")
+```
+
+---
+
+## Custom Configuration & Environments
+
+```python
+import httpx
 from weathercloud import WeathercloudClient
 from weathercloud.environment import WeathercloudClientEnvironment
 
 client = WeathercloudClient(
     environment=WeathercloudClientEnvironment.DEFAULT,
+    # Configure custom timeout or retries via httpx
+    httpx_client=httpx.Client(timeout=10.0),
 )
 ```
 
-## Async Client
+---
 
-The SDK also exports an `async` client so that you can make non-blocking calls to our API. Note that if you are constructing an Async httpx client class to pass into this client, use `httpx.AsyncClient()` instead of `httpx.Client()` (e.g. for the `httpx_client` parameter of this client).
+## Full Reference
 
-```python
-import asyncio
-
-from weathercloud import AsyncWeathercloudClient
-
-client = AsyncWeathercloudClient()
-
-
-async def main() -> None:
-    await client.auth.login(
-        login_form_entity="LoginForm[entity]",
-        login_form_password="LoginForm[password]",
-    )
-
-
-asyncio.run(main())
-```
-
-## Exception Handling
-
-When the API returns a non-success status code (4xx or 5xx response), a subclass of the following error
-will be thrown.
-
-```python
-from weathercloud.core.api_error import ApiError
-
-try:
-    client.auth.login(...)
-except ApiError as e:
-    print(e.status_code)
-    print(e.body)
-```
-
-## Advanced
-
-### Access Raw Response Data
-
-The SDK provides access to raw response data, including headers, through the `.with_raw_response` property.
-The `.with_raw_response` property returns a "raw" client that can be used to access the `.headers` and `.data` attributes.
-
-```python
-from weathercloud import WeathercloudClient
-
-client = WeathercloudClient(...)
-response = client.auth.with_raw_response.login(...)
-print(response.headers)  # access the response headers
-print(response.status_code)  # access the response status code
-print(response.data)  # access the underlying object
-```
-
-### Retries
-
-The SDK is instrumented with automatic retries with exponential backoff. A request will be retried as long
-as the request is deemed retryable and the number of retry attempts has not grown larger than the configured
-retry limit (default: 2).
-
-Which status codes are retried depends on the `retryStatusCodes` generator configuration:
-
-**`legacy`** (current default): retries on
-- [408](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/408) (Timeout)
-- [409](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/409) (Conflict)
-- [429](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/429) (Too Many Requests)
-- [5XX](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status#server_error_responses) (All server errors, including 500)
-
-**`recommended`**: retries on
-- [408](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/408) (Timeout)
-- [409](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/409) (Conflict)
-- [429](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/429) (Too Many Requests)
-- [502](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/502) (Bad Gateway)
-- [503](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/503) (Service Unavailable)
-- [504](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/504) (Gateway Timeout)
-
-Use the `max_retries` request option to configure this behavior.
-
-```python
-client.auth.login(..., request_options={
-    "max_retries": 1
-})
-```
-
-### Timeouts
-
-The SDK defaults to a 60 second timeout. You can configure this with a timeout option at the client or request level.
-
-```python
-from weathercloud import WeathercloudClient
-
-client = WeathercloudClient(..., timeout=20.0)
-
-# Override timeout for a specific method
-client.auth.login(..., request_options={
-    "timeout": 1
-})
-```
-
-### Custom Client
-
-You can override the `httpx` client to customize it for your use-case. Some common use-cases include support for proxies
-and transports.
-
-```python
-import httpx
-from weathercloud import WeathercloudClient
-
-client = WeathercloudClient(
-    ...,
-    httpx_client=httpx.Client(
-        proxy="http://my.test.proxy.example.com",
-        transport=httpx.HTTPTransport(local_address="0.0.0.0"),
-    ),
-)
-```
-
-## Contributing
-
-While we value open-source contributions to this SDK, this library is generated programmatically.
-Additions made directly to this library would have to be moved over to our generation code,
-otherwise they would be overwritten upon the next generated release. Feel free to open a PR as
-a proof of concept, but know that we will not be able to merge it as-is. We suggest opening
-an issue first to discuss with us!
-
-On the other hand, contributions to the README are always very welcome!
+For comprehensive API definitions, request parameters, and response schemas, see [reference.md](./reference.md).

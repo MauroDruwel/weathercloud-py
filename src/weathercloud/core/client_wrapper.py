@@ -33,12 +33,12 @@ class BaseClientWrapper:
         import platform
 
         headers: typing.Dict[str, str] = {
-            "User-Agent": "weathercloud/0.1.6",
+            "User-Agent": "weathercloud/1.0.1",
             "X-Fern-Language": "Python",
             "X-Fern-Runtime": f"python/{platform.python_version()}",
             "X-Fern-Platform": f"{platform.system().lower()}/{platform.release()}",
             "X-Fern-SDK-Name": "weathercloud",
-            "X-Fern-SDK-Version": "0.1.6",
+            "X-Fern-SDK-Version": "1.0.1",
             **(self.get_custom_headers() or {}),
         }
         if self._requested_with is not None:
